@@ -4,7 +4,9 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const isGitHubPages = process.env.GITHUB_PAGES === 'true' || process.env.GITHUB_ACTIONS === 'true';
   return {
+    base: isGitHubPages ? '/Dominion/' : './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

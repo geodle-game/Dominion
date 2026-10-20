@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Swords, Footprints, Coins, Eye, Castle, Shield, Sparkles } from 'lucide-react';
+import { BookOpen, Swords, Footprints, Coins, Castle, Shield, Sparkles, FlaskConical, Tent } from 'lucide-react';
 
 interface HelpModalProps {
   onClose: () => void;
@@ -17,7 +17,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-100">Imperial Strategic Codex</h2>
-              <p className="text-xs text-slate-400">Rules of engagement, territorial annexation, and statecraft</p>
+              <p className="text-xs text-slate-400">Tactical warfare, technology trees, and imperial statecraft</p>
             </div>
           </div>
           <button
@@ -30,84 +30,84 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs text-slate-300 leading-relaxed">
-          {/* Controls */}
+          {/* Controls & Hotkeys */}
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <h3 className="font-bold text-sm text-amber-400 mb-2 flex items-center gap-2">
-              <Sparkles className="h-4 w-4" /> Camera & Field Controls
+              <Sparkles className="h-4 w-4" /> Field Controls & Hotkeys
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
               <div>
-                <span className="font-mono text-amber-300">W / A / S / D</span> or <span className="font-mono text-amber-300">Right-Drag</span>: Pan camera across realm
+                <span className="font-mono text-amber-300">W / A / S / D</span> or <span className="font-mono text-amber-300">Right-Drag</span>: Pan across realm
+              </div>
+              <div>
+                <span className="font-mono text-amber-300">Q / E</span>: Orbit / rotate battlefield view
               </div>
               <div>
                 <span className="font-mono text-amber-300">Mouse Wheel</span>: Zoom in / out
               </div>
               <div>
-                <span className="font-mono text-amber-300">Q / E</span>: Orbit / rotate battlefield angle
+                <span className="font-mono text-amber-300">T</span>: Open Technology Research Tree
               </div>
               <div>
-                <span className="font-mono text-amber-300">Left Click</span>: Select tile, friendly unit, or city
+                <span className="font-mono text-amber-300">L</span>: Open Ministry of Treasury Ledger
+              </div>
+              <div>
+                <span className="font-mono text-amber-300">Space</span>: Conclude imperial turn
               </div>
             </div>
           </div>
 
-          {/* Movement & Fog of War */}
+          {/* Technology Tree & Empire Scaling */}
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-            <h3 className="font-bold text-sm text-sky-400 mb-2 flex items-center gap-2">
-              <Footprints className="h-4 w-4" /> Movement & Fog of War
+            <h3 className="font-bold text-sm text-purple-400 mb-2 flex items-center gap-2">
+              <FlaskConical className="h-4 w-4" /> Technology Tree & Empire-Size Scaling
             </h3>
             <p>
-              Each unit has Movement Points (MP). Grassland costs 1 MP, while Forests, Hills, and Rivers cost 2 MP. Mountains and Deep Waters are impassable.
+              Dominion features 16 interconnected technologies across 4 specialized branches:
             </p>
-            <p className="mt-2">
-              Genuine Fog of War envelops the realm:
-            </p>
-            <ul className="list-disc list-inside mt-1 space-y-1 text-slate-400">
-              <li><strong className="text-slate-200">Unexplored:</strong> Shrouded in black mist. Terrain and occupants unknown.</li>
-              <li><strong className="text-slate-200">Explored:</strong> Previously charted terrain is remembered in dim light, but enemy unit positions are concealed!</li>
-              <li><strong className="text-slate-200">Visible:</strong> In active line-of-sight of friendly regiments or cities. Fully lit with real-time troop detection.</li>
+            <ul className="list-disc list-inside mt-1.5 space-y-1 text-slate-400">
+              <li><strong className="text-emerald-300">Agriculture & Economy:</strong> Farming, Irrigation (famine immunity), Trade (+2g per city route), Administration (+15% gross revenue).</li>
+              <li><strong className="text-sky-300">Exploration & Expansion:</strong> Scouting (vision 4, hill mastery), Roads (0.5 MP in territory), Settlements (Settler recruitment), Navigation (embark on water).</li>
+              <li><strong className="text-rose-300">Military:</strong> Forged Steel (+1 melee atk), Armour (Phalanx Spearmen), Tactics (Longbowmen & +25% flanking), Siegecraft (Trebuchets).</li>
+              <li><strong className="text-amber-300">Engineering:</strong> Construction (Workshops), Fortifications (Walls & +40% fortify def), Logistics (-1 unit upkeep), Advanced Engineering (Range 3 Trebuchets).</li>
             </ul>
+            <div className="mt-3 rounded bg-purple-950/30 border border-purple-500/30 p-2 font-mono text-[11px] text-purple-300">
+              Polytopia-Style Scaling: Research Cost = Base (40g/70g/120g) + (Cities Count - 1) × Scaling Factor.
+              Rapid expansion increases research costs, creating a vital choice between wide conquest and technological focus!
+            </div>
           </div>
 
-          {/* Combat System */}
+          {/* Tactical Roles & Combat Counters */}
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <h3 className="font-bold text-sm text-rose-400 mb-2 flex items-center gap-2">
-              <Swords className="h-4 w-4" /> Combat & Fortifications
+              <Swords className="h-4 w-4" /> Tactical Combat & Unit Counters
             </h3>
             <p>
-              When a friendly unit is selected, reachable tiles glow <span className="text-emerald-400 font-bold">Green</span> and enemy targets glow <span className="text-rose-400 font-bold">Red</span>. Clicking an enemy attacks them.
+              Hovering over an enemy unit in range displays a live <strong>Tactical Engagement Forecast</strong> with projected damage and modifiers:
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-slate-400">
-              <div>• <strong>Forests:</strong> +25% Defense</div>
-              <div>• <strong>Hills:</strong> +35% Defense</div>
-              <div>• <strong>Citadels:</strong> +35% Base Defense</div>
-              <div>• <strong>Fortified Units:</strong> +25% Defense</div>
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
+              <div className="rounded bg-slate-900/60 p-2 border border-slate-800">
+                <strong className="text-amber-300">Phalanx vs Cavalry:</strong> Spearmen gain <span className="text-emerald-400 font-bold">+50% combat bonus</span> against Knights.
+              </div>
+              <div className="rounded bg-slate-900/60 p-2 border border-slate-800">
+                <strong className="text-amber-300">Siege vs Citadels:</strong> Trebuchets deliver <span className="text-amber-400 font-bold">+100% damage</span> against Cities and Fortified garrisons.
+              </div>
+              <div className="rounded bg-slate-900/60 p-2 border border-slate-800">
+                <strong className="text-amber-300">Flanking Maneuvers:</strong> Attacking an enemy that borders an ally deals <span className="text-sky-400 font-bold">+25% flanking bonus</span> (requires Tactics).
+              </div>
+              <div className="rounded bg-slate-900/60 p-2 border border-slate-800">
+                <strong className="text-amber-300">Ranged Volleys:</strong> Longbowmen and Trebuchets attack from 2 range without taking melee retaliation.
+              </div>
             </div>
-            <p className="mt-2">
-              Archers and Trebuchets can fire at range 2 without taking melee retaliation! Surviving battles grants units Veterancy, boosting their combat prowess by +12% per rank.
-            </p>
           </div>
 
-          {/* Economy & Victoria 3 Depth */}
+          {/* Colonization & Expansion */}
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <h3 className="font-bold text-sm text-emerald-400 mb-2 flex items-center gap-2">
-              <Coins className="h-4 w-4" /> Economy & Imperial Decrees
+              <Tent className="h-4 w-4" /> Frontier Colonization
             </h3>
             <p>
-              Cities generate gold from commerce and working citizens. Farms supply grain to feed growing populations and military rations.
-            </p>
-            <p className="mt-2">
-              Click the Treasury or Granary counter in the top bar to inspect the Economic Ledger and toggle decrees like <strong className="text-amber-300">War Mobilization</strong> or <strong className="text-sky-300">Mercantile Free Trade</strong>.
-            </p>
-          </div>
-
-          {/* Victory Conditions */}
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-            <h3 className="font-bold text-sm text-amber-400 mb-2 flex items-center gap-2">
-              <Castle className="h-4 w-4" /> Victory & Defeat
-            </h3>
-            <p>
-              Capture all rival kingdoms' capital citadels to achieve complete Imperial Hegemony. If your own capital falls to enemy forces, your empire collapses in defeat!
+              Researching <strong>Frontier Colonisation</strong> unlocks Frontier Settlers. Move a Settler to an unclaimed fertile hex and click <strong>"Found New Colony Here"</strong> in the tile panel to establish a new Level 1 City and claim the surrounding territory!
             </p>
           </div>
         </div>

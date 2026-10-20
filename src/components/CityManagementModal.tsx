@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BuildingType, City, HexTile, Kingdom, UnitType } from '../types/game';
-import { BUILDING_DEFINITIONS, UNIT_DEFINITIONS } from '../game/constants';
-import { Castle, Shield, Users, Hammer, Plus, Check, AlertCircle } from 'lucide-react';
+import { BUILDING_DEFINITIONS, TECHNOLOGIES, UNIT_DEFINITIONS } from '../game/constants';
+import { Castle, Shield, Users, Lock, Plus, Check, AlertCircle, Sparkles } from 'lucide-react';
 import { sounds } from '../audio/soundManager';
 
 interface CityManagementModalProps {
@@ -26,6 +26,7 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
   const unitList = Object.values(UNIT_DEFINITIONS);
   const buildingList = Object.values(BUILDING_DEFINITIONS);
   const isCityTileOccupied = cityTile.unitId !== null;
+  const researched = player.researchedTechs || [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-none select-none">
@@ -101,15 +102,20 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
 
               <div className="grid gap-3">
                 {unitList.map((unitDef) => {
+                  const isTechUnlocked = !unitDef.requiredTech || researched.includes(unitDef.requiredTech);
                   const canAffordGold = player.gold >= unitDef.costGold;
                   const canAffordFood = player.food >= unitDef.costFood;
                   const canAffordIron = player.iron >= unitDef.costIron;
-                  const canRecruit = !isCityTileOccupied && canAffordGold && canAffordFood && canAffordIron;
+                  const canRecruit = isTechUnlocked && !isCityTileOccupied && canAffordGold && canAffordFood && canAffordIron;
 
                   return (
                     <div
                       key={unitDef.type}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700"
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border p-4 transition ${
+                        isTechUnlocked
+                          ? 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+                          : 'border-slate-900 bg-slate-950/20 opacity-60'
+                      }`}
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -117,8 +123,18 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
                           <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400 font-mono">
                             {unitDef.moves} MP · {unitDef.range > 1 ? `Range ${unitDef.range}` : 'Melee'}
                           </span>
+                          {!isTechUnlocked && unitDef.requiredTech && (
+                            <span className="flex items-center gap-1 rounded bg-rose-950/40 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                              <Lock className="h-3 w-3" /> Requires {TECHNOLOGIES[unitDef.requiredTech]?.name}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-400 max-w-md">{unitDef.description}</p>
+                        {unitDef.traits && (
+                          <div className="text-[11px] text-amber-400 font-medium pt-0.5">
+                            {unitDef.traits.join(' · ')}
+                          </div>
+                        )}
                         <div className="flex items-center gap-3 text-xs text-slate-300 pt-1">
                           <span className="text-rose-400 font-bold">Atk {unitDef.attack}</span>
                           <span className="text-sky-400 font-bold">Def {unitDef.defense}</span>
@@ -155,7 +171,7 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
                               : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
                           }`}
                         >
-                          Recruit Regiment
+                          {!isTechUnlocked ? 'Tech Locked' : isCityTileOccupied ? 'Tile Occupied' : 'Recruit Regiment'}
                         </button>
                       </div>
                     </div>
@@ -168,13 +184,19 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
           {activeTab === 'buildings' && (
             <div className="grid gap-3">
               {buildingList.map((bDef) => {
+                const isTechUnlocked = !bDef.requiredTech || researched.includes(bDef.requiredTech);
                 const isBuilt = city.buildings.includes(bDef.type);
                 const canAfford = player.gold >= bDef.costGold;
+                const canBuild = isTechUnlocked && !isBuilt && canAfford;
 
                 return (
                   <div
                     key={bDef.type}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:border-slate-700"
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border p-4 transition ${
+                      isTechUnlocked
+                        ? 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+                        : 'border-slate-900 bg-slate-950/20 opacity-60'
+                    }`}
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -182,6 +204,11 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
                         {isBuilt && (
                           <span className="flex items-center gap-1 rounded bg-emerald-950/60 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
                             <Check className="h-3 w-3" /> Operational
+                          </span>
+                        )}
+                        {!isTechUnlocked && bDef.requiredTech && (
+                          <span className="flex items-center gap-1 rounded bg-rose-950/40 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                            <Lock className="h-3 w-3" /> Requires {TECHNOLOGIES[bDef.requiredTech]?.name}
                           </span>
                         )}
                       </div>
@@ -203,7 +230,7 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
                       </div>
 
                       <button
-                        disabled={isBuilt || !canAfford}
+                        disabled={!canBuild}
                         onClick={() => {
                           sounds.playRecruit();
                           onBuildStructure(bDef.type);
@@ -211,13 +238,15 @@ export const CityManagementModal: React.FC<CityManagementModalProps> = ({
                         className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-bold transition shadow cursor-pointer ${
                           isBuilt
                             ? 'bg-slate-800 text-slate-500 cursor-default'
-                            : canAfford
+                            : canBuild
                             ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 active:scale-95'
                             : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
                         }`}
                       >
                         {isBuilt ? (
                           'Constructed'
+                        ) : !isTechUnlocked ? (
+                          'Tech Locked'
                         ) : (
                           <>
                             <Plus className="h-3.5 w-3.5" />

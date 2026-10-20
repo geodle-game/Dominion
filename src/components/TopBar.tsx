@@ -1,6 +1,6 @@
 import React from 'react';
 import { Kingdom, EconomicLedger } from '../types/game';
-import { Volume2, VolumeX, HelpCircle, BarChart3, ShieldAlert, Sparkles, FastForward } from 'lucide-react';
+import { Volume2, VolumeX, HelpCircle, BarChart3, ShieldAlert, Sparkles, FastForward, FlaskConical } from 'lucide-react';
 import { sounds } from '../audio/soundManager';
 
 interface TopBarProps {
@@ -12,6 +12,7 @@ interface TopBarProps {
   isMuted: boolean;
   onToggleMute: () => void;
   onOpenLedger: () => void;
+  onOpenTechTree: () => void;
   onOpenHelp: () => void;
   onEndTurn: () => void;
 }
@@ -25,10 +26,12 @@ export const TopBar: React.FC<TopBarProps> = ({
   isMuted,
   onToggleMute,
   onOpenLedger,
+  onOpenTechTree,
   onOpenHelp,
   onEndTurn,
 }) => {
   const year = 850 + (turn - 1) * 2;
+  const techCount = player.researchedTechs ? player.researchedTechs.length : 1;
 
   return (
     <header className="pointer-events-none absolute top-0 left-0 right-0 z-20 flex flex-col items-center p-3 select-none">
@@ -51,8 +54,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
         </div>
 
-        {/* Center: Victoria 3 Style Economic & Resource Bar */}
-        <div className="flex items-center gap-4 text-xs tabular-nums">
+        {/* Center: Economic, Research & Resource Bar */}
+        <div className="flex items-center gap-3 sm:gap-4 text-xs tabular-nums">
           {/* Treasury / Gold */}
           <button
             onClick={() => {
@@ -89,9 +92,27 @@ export const TopBar: React.FC<TopBarProps> = ({
             </div>
           </button>
 
+          {/* Technology Tree CTA */}
+          <button
+            onClick={() => {
+              sounds.playSelect();
+              onOpenTechTree();
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-950/40 px-2.5 py-1 transition hover:bg-purple-900/50 hover:border-purple-400 cursor-pointer"
+            title="Open Technology Tree (Hotkey: T)"
+          >
+            <FlaskConical className="h-4 w-4 text-purple-400" />
+            <div className="flex items-center gap-1">
+              <span className="font-bold text-purple-200 hidden md:inline">Research</span>
+              <span className="rounded bg-purple-900/80 px-1.5 py-0.2 text-[10px] font-mono font-bold text-purple-300">
+                {techCount}/16
+              </span>
+            </div>
+          </button>
+
           {/* Iron Stockpile */}
           <div
-            className="flex items-center gap-1.5 rounded-lg border border-slate-600/50 bg-slate-800/60 px-2.5 py-1"
+            className="hidden sm:flex items-center gap-1.5 rounded-lg border border-slate-600/50 bg-slate-800/60 px-2.5 py-1"
             title="Iron Deposits (Used for heavy infantry, knights, catapults)"
           >
             <span className="text-slate-300 font-bold">⛏️</span>
@@ -100,7 +121,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
           {/* Population */}
           <div
-            className="flex items-center gap-1.5 rounded-lg border border-sky-600/40 bg-sky-950/40 px-2.5 py-1"
+            className="hidden sm:flex items-center gap-1.5 rounded-lg border border-sky-600/40 bg-sky-950/40 px-2.5 py-1"
             title="Imperial Population"
           >
             <span className="text-sky-400 font-bold">👥</span>
@@ -113,7 +134,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               sounds.playSelect();
               onOpenLedger();
             }}
-            className="hidden sm:flex items-center gap-1 rounded border border-purple-500/40 bg-purple-950/40 px-2 py-1 text-[11px] text-purple-300 hover:bg-purple-900/50 transition cursor-pointer"
+            className="hidden lg:flex items-center gap-1 rounded border border-purple-500/40 bg-purple-950/40 px-2 py-1 text-[11px] text-purple-300 hover:bg-purple-900/50 transition cursor-pointer"
             title="Click to change Imperial Economic Policy"
           >
             <BarChart3 className="h-3 w-3" />
@@ -137,7 +158,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               onOpenHelp();
             }}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white transition cursor-pointer"
-            title="Game Manual & Rules"
+            title="Game Manual & Rules (Hotkey: H)"
           >
             <HelpCircle className="h-4 w-4" />
           </button>

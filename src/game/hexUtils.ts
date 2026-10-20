@@ -1,4 +1,4 @@
-import { HexCoord, HexTile, Unit } from '../types/game';
+import { HexCoord, HexTile, TechId, Unit } from '../types/game';
 
 export const HEX_RADIUS = 2.0;
 export const HEX_WIDTH = Math.sqrt(3) * HEX_RADIUS; // ~3.464
@@ -78,7 +78,63 @@ export function getTilesInRange(center: HexCoord, range: number): HexCoord[] {
 }
 
 /**
- * Dijkstra / Breadth-first search to find all reachable tiles given remaining moves.
+ * Calculates movement cost considering terrain and researched technologies.
+ */
+export function getTileMoveCost(
+  tile: HexTile,
+  unit: Unit,
+  researchedTechs: TechId[] = []
+): number {
+  if (tile.terrain === 'mountain') return 999;
+
+  // Navigation tech allows traversing river and deep water
+  if (tile.terrain === 'water') {
+    return researchedTechs.includes('navigation') ? 2 : 999;
+  }
+
+  // Paved Highways (roads): Movement in friendly territory costs only 0.5 MP
+  if (researchedTechs.includes('roads') && tile.ownerId === unit.ownerId) {
+    return 0.5;
+  }
+
+  // Scouting: Scouts ignore extra cost on hills
+  if (unit.type === 'scout' && researchedTechs.includes('scouting') && tile.terrain === 'hills') {
+    return 1;
+  }
+
+  // Shock Cavalry moving through open grassland
+  if (unit.type === 'cavalry' && tile.terrain === 'grassland') {
+    return 1;
+  }
+
+  return tile.moveCost;
+}
+
+/**
+ * Checks if target is flanked by another ally of the attacker.
+ */
+export function isTargetFlanked(
+  targetCoord: HexCoord,
+  attacker: Unit,
+  tilesMap: Map<string, HexTile>,
+  unitsMap: Map<string, Unit>
+): boolean {
+  const neighbors = getNeighbors(targetCoord.q, targetCoord.r);
+  for (const n of neighbors) {
+    if (n.q === attacker.q && n.r === attacker.r) continue;
+    const tile = tilesMap.get(hexToKey(n.q, n.r));
+    if (tile && tile.unitId) {
+      const ally = unitsMap.get(tile.unitId);
+      if (ally && ally.ownerId === attacker.ownerId && ally.id !== attacker.id) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Dijkstra / BFS to find all reachable tiles given remaining moves.
  * Returns map of tileKey -> remaining moves.
  */
 export function getReachableTiles(
@@ -86,7 +142,8 @@ export function getReachableTiles(
   movesLeft: number,
   tilesMap: Map<string, HexTile>,
   unitsMap: Map<string, Unit>,
-  unit: Unit
+  unit: Unit,
+  researchedTechs: TechId[] = []
 ): Map<string, number> {
   const reachable = new Map<string, number>();
   if (movesLeft <= 0) return reachable;
@@ -97,7 +154,6 @@ export function getReachableTiles(
   bestCost.set(startKey, 0);
 
   while (queue.length > 0) {
-    // Sort ascending by costSoFar
     queue.sort((a, b) => a.costSoFar - b.costSoFar);
     const current = queue.shift()!;
 
@@ -107,28 +163,20 @@ export function getReachableTiles(
       const tile = tilesMap.get(nKey);
       if (!tile) continue;
 
-      // Impassable terrain: mountain or deep water
-      if (tile.terrain === 'mountain' || tile.terrain === 'water') continue;
+      const moveCost = getTileMoveCost(tile, unit, researchedTechs);
+      if (moveCost >= 900) continue; // Impassable
 
-      let moveCost = tile.moveCost;
-      // Cavalry bonus: moves on grassland cost only 1
-      if (unit.type === 'cavalry' && tile.terrain === 'grassland') {
-        moveCost = 1;
-      }
-
-      // Check occupied by unit
       const occupant = tile.unitId ? unitsMap.get(tile.unitId) : null;
       if (occupant && occupant.ownerId !== unit.ownerId) {
         // Can only move into enemy tile if melee attacking!
-        if (unit.range === 1 && current.costSoFar + moveCost <= movesLeft) {
+        if (unit.range === 1 && !unit.isCivilian && current.costSoFar + moveCost <= movesLeft) {
           reachable.set(nKey, movesLeft - (current.costSoFar + moveCost));
         }
         continue;
       }
 
-      // If friendly unit is on tile, we can't end move there, but could path through if implemented,
-      // or for simplicity in hex tactics: 1 unit per tile max
       if (occupant && occupant.id !== unit.id) {
+        // Friendly unit blocks ending turn on this tile
         continue;
       }
 
@@ -156,7 +204,8 @@ export function findPath(
   goal: HexCoord,
   tilesMap: Map<string, HexTile>,
   unitsMap: Map<string, Unit>,
-  unit: Unit
+  unit: Unit,
+  researchedTechs: TechId[] = []
 ): HexCoord[] | null {
   const startKey = hexToKey(start.q, start.r);
   const goalKey = hexToKey(goal.q, goal.r);
@@ -219,15 +268,16 @@ export function findPath(
 
       const tile = tilesMap.get(nKey);
       if (!tile) continue;
-      if (tile.terrain === 'mountain' || tile.terrain === 'water') continue;
 
-      // Allow stepping into goal even if enemy unit is there (for attack)
+      const moveCost = getTileMoveCost(tile, unit, researchedTechs);
+      if (moveCost >= 900) continue;
+
       const occupant = tile.unitId ? unitsMap.get(tile.unitId) : null;
       if (occupant && occupant.id !== unit.id && nKey !== goalKey) {
         continue;
       }
 
-      const tentativeG = currentNode.gCost + tile.moveCost;
+      const tentativeG = currentNode.gCost + moveCost;
       const existing = openSet.get(nKey);
 
       if (!existing || tentativeG < existing.gCost) {

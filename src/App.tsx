@@ -4,15 +4,17 @@ import { generateWorldMap } from './game/mapGenerator';
 import { GameEngine } from './game/gameEngine';
 import { AIEngine } from './game/aiEngine';
 import { getReachableTiles, getTilesInRange, hexDistance, hexToKey } from './game/hexUtils';
-import { BUILDING_DEFINITIONS, UNIT_DEFINITIONS } from './game/constants';
+import { BUILDING_DEFINITIONS, TECHNOLOGIES, TERRAIN_DATA, UNIT_DEFINITIONS } from './game/constants';
 import {
   BuildingType,
   City,
+  CombatPreview,
   FogState,
   GameLog,
   GamePhase,
   HexTile,
   Kingdom,
+  TechId,
   Unit,
   UnitType,
 } from './types/game';
@@ -22,6 +24,8 @@ import { TopBar } from './components/TopBar';
 import { TileInfoPanel } from './components/TileInfoPanel';
 import { CityManagementModal } from './components/CityManagementModal';
 import { EconomyLedgerModal } from './components/EconomyLedgerModal';
+import { TechTreeModal } from './components/TechTreeModal';
+import { CombatPreviewCard } from './components/CombatPreviewCard';
 import { CombatLogPanel } from './components/CombatLogPanel';
 import { Minimap } from './components/Minimap';
 import { TitleScreen } from './components/TitleScreen';
@@ -45,9 +49,15 @@ export default function App() {
   // Interactive Selection State
   const [selectedTileKey, setSelectedTileKey] = useState<string | null>(null);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [combatPreview, setCombatPreview] = useState<{
+    attacker: Unit;
+    defender: Unit;
+    preview: CombatPreview;
+    tileName: string;
+  } | null>(null);
 
   // Modals
-  const [activeModal, setActiveModal] = useState<'city' | 'ledger' | 'help' | null>(null);
+  const [activeModal, setActiveModal] = useState<'city' | 'ledger' | 'help' | 'techtree' | null>(null);
   const [activeCityId, setActiveCityId] = useState<string | null>(null);
 
   // Turn processing & UI
@@ -122,17 +132,64 @@ export default function App() {
     []
   );
 
+  // Update reachable/attack highlights for selected unit
+  const updateUnitHighlights = useCallback(
+    (
+      unit: Unit,
+      tState: Map<string, HexTile>,
+      uState: Map<string, Unit>,
+      fState: Map<string, FogState>,
+      playerTechs: TechId[] = []
+    ) => {
+      if (!sceneRef.current) return;
+      if (unit.movesLeft <= 0) {
+        sceneRef.current.hexManager.clearHighlights();
+        return;
+      }
+
+      const reachable = getReachableTiles(
+        { q: unit.q, r: unit.r },
+        unit.movesLeft,
+        tState,
+        uState,
+        unit,
+        playerTechs
+      );
+      const attackCoords = getTilesInRange({ q: unit.q, r: unit.r }, unit.range);
+      const attackTargets: HexTile[] = [];
+
+      if (!unit.hasAttacked && !unit.isCivilian) {
+        for (const ac of attackCoords) {
+          const k = hexToKey(ac.q, ac.r);
+          const t = tState.get(k);
+          const fog = fState.get(k);
+          if (t && fog === 'visible' && t.unitId) {
+            const occ = uState.get(t.unitId);
+            if (occ && occ.ownerId !== 'player') {
+              attackTargets.push(t);
+            }
+          }
+        }
+      }
+
+      sceneRef.current.hexManager.showReachableAndTargets(reachable, attackTargets, tState);
+    },
+    []
+  );
+
   // Initialize a new match
   const startNewGame = useCallback((mapRadius: number = 7, factionCount: number = 3) => {
     const mapData = generateWorldMap(mapRadius, Math.floor(Math.random() * 50000), factionCount);
 
+    const playerFaction = mapData.kingdoms.find(k => k.id === 'player');
     const initialExplored = new Set<string>();
     const { fogMap: initialFog, updatedExplored } = GameEngine.calculateFogOfWar(
       'player',
       mapData.tiles,
       mapData.units,
       mapData.cities,
-      initialExplored
+      initialExplored,
+      playerFaction?.researchedTechs || []
     );
 
     setTiles(mapData.tiles);
@@ -144,6 +201,7 @@ export default function App() {
     setTurn(1);
     setSelectedTileKey(null);
     setSelectedUnitId(null);
+    setCombatPreview(null);
     setActiveModal(null);
     setPhase('playing');
     setGameLogs([
@@ -191,7 +249,7 @@ export default function App() {
       const clickedTile = curTiles.get(clickKey);
       if (!clickedTile) return;
 
-      const fog = curFog.get(clickKey) || 'unexplored';
+      const player = curKingdoms.find(k => k.id === 'player')!;
       const selectedUnit = currUnitId ? curUnits.get(currUnitId) : null;
 
       // Case 1: Friendly Unit is selected and player clicks a target tile
@@ -201,7 +259,8 @@ export default function App() {
           selectedUnit.movesLeft,
           curTiles,
           curUnits,
-          selectedUnit
+          selectedUnit,
+          player.researchedTechs
         );
 
         const isReachable = reachable.has(clickKey);
@@ -211,16 +270,21 @@ export default function App() {
         // Attack enemy unit
         const inAttackRange =
           isEnemyOccupant &&
+          !selectedUnit.isCivilian &&
           hexDistance({ q: selectedUnit.q, r: selectedUnit.r }, { q, r }) <= selectedUnit.range;
 
         if (inAttackRange && !selectedUnit.hasAttacked) {
-          // Perform Combat!
           sounds.playAttack(selectedUnit.range > 1);
+          const defenderKingdom = curKingdoms.find(k => k.id === occupant.ownerId);
           const combat = GameEngine.resolveCombat(
             selectedUnit,
             occupant,
             clickedTile,
-            curTiles.get(hexToKey(selectedUnit.q, selectedUnit.r))!
+            curTiles.get(hexToKey(selectedUnit.q, selectedUnit.r))!,
+            curTiles,
+            curUnits,
+            player.researchedTechs,
+            defenderKingdom?.researchedTechs || []
           );
 
           if (sceneRef.current) {
@@ -229,6 +293,7 @@ export default function App() {
           }
 
           addLog(combat.log, 'combat');
+          setCombatPreview(null);
 
           const nextUnits = new Map(curUnits);
           const nextTiles = new Map(curTiles);
@@ -241,20 +306,18 @@ export default function App() {
           selectedUnit.isFortified = false;
 
           if (occupant.hp <= 0) {
-            // Defender destroyed!
             nextUnits.delete(occupant.id);
             clickedTile.unitId = null;
             setStats(s => ({ ...s, enemiesDefeated: s.enemiesDefeated + 1 }));
 
             // Advance melee unit into conquered hex
-            if (selectedUnit.range === 1 && selectedUnit.hp > 0) {
+            if (selectedUnit.range === 1 && selectedUnit.hp > 0 && !selectedUnit.isCivilian) {
               const oldTile = nextTiles.get(hexToKey(selectedUnit.q, selectedUnit.r));
               if (oldTile) oldTile.unitId = null;
               clickedTile.unitId = selectedUnit.id;
               selectedUnit.q = q;
               selectedUnit.r = r;
 
-              // Check if captured city!
               if (clickedTile.cityId) {
                 const c = nextCities.get(clickedTile.cityId);
                 if (c && c.ownerId !== 'player') {
@@ -274,13 +337,13 @@ export default function App() {
             setStats(s => ({ ...s, unitsLost: s.unitsLost + 1 }));
           }
 
-          // Recalculate fog of war
           const { fogMap: nextFog, updatedExplored } = GameEngine.calculateFogOfWar(
             'player',
             nextTiles,
             nextUnits,
             nextCities,
-            stateRef.current.exploredTiles
+            stateRef.current.exploredTiles,
+            player.researchedTechs
           );
 
           setUnits(nextUnits);
@@ -293,7 +356,6 @@ export default function App() {
           syncSceneVisuals(nextTiles, nextUnits, nextCities, nextFog, curKingdoms);
           sceneRef.current?.hexManager.clearHighlights();
 
-          // Check End Conditions
           const outcome = GameEngine.checkEndConditions(curKingdoms, nextCities);
           if (outcome) {
             if (outcome === 'victory') sounds.playVictory();
@@ -334,7 +396,8 @@ export default function App() {
             nextTiles,
             nextUnits,
             nextCities,
-            stateRef.current.exploredTiles
+            stateRef.current.exploredTiles,
+            player.researchedTechs
           );
 
           setUnits(nextUnits);
@@ -343,17 +406,16 @@ export default function App() {
           setFogMap(nextFog);
           setExploredTiles(updatedExplored);
           setSelectedTileKey(clickKey);
+          setCombatPreview(null);
 
           syncSceneVisuals(nextTiles, nextUnits, nextCities, nextFog, curKingdoms);
 
-          // Update highlights for remaining moves
           if (selectedUnit.movesLeft > 0) {
-            updateUnitHighlights(selectedUnit, nextTiles, nextUnits, nextFog);
+            updateUnitHighlights(selectedUnit, nextTiles, nextUnits, nextFog, player.researchedTechs);
           } else {
             sceneRef.current?.hexManager.clearHighlights();
           }
 
-          // Check end conditions
           const outcome = GameEngine.checkEndConditions(curKingdoms, nextCities);
           if (outcome) {
             if (outcome === 'victory') sounds.playVictory();
@@ -367,52 +429,20 @@ export default function App() {
       // Case 2: Standard tile/unit selection
       sounds.playSelect();
       setSelectedTileKey(clickKey);
+      setCombatPreview(null);
       sceneRef.current?.hexManager.setSelection(clickedTile);
 
       const unitOnTile = clickedTile.unitId ? curUnits.get(clickedTile.unitId) : null;
       if (unitOnTile && unitOnTile.ownerId === 'player') {
         setSelectedUnitId(unitOnTile.id);
-        updateUnitHighlights(unitOnTile, curTiles, curUnits, curFog);
+        updateUnitHighlights(unitOnTile, curTiles, curUnits, curFog, player.researchedTechs);
       } else {
         setSelectedUnitId(null);
         sceneRef.current?.hexManager.clearHighlights();
       }
     },
-    [addLog, syncSceneVisuals]
+    [addLog, syncSceneVisuals, updateUnitHighlights]
   );
-
-  const updateUnitHighlights = (
-    unit: Unit,
-    tState: Map<string, HexTile>,
-    uState: Map<string, Unit>,
-    fState: Map<string, FogState>
-  ) => {
-    if (!sceneRef.current) return;
-    if (unit.movesLeft <= 0) {
-      sceneRef.current.hexManager.clearHighlights();
-      return;
-    }
-
-    const reachable = getReachableTiles({ q: unit.q, r: unit.r }, unit.movesLeft, tState, uState, unit);
-    const attackCoords = getTilesInRange({ q: unit.q, r: unit.r }, unit.range);
-    const attackTargets: HexTile[] = [];
-
-    if (!unit.hasAttacked) {
-      for (const ac of attackCoords) {
-        const k = hexToKey(ac.q, ac.r);
-        const t = tState.get(k);
-        const fog = fState.get(k);
-        if (t && fog === 'visible' && t.unitId) {
-          const occ = uState.get(t.unitId);
-          if (occ && occ.ownerId !== 'player') {
-            attackTargets.push(t);
-          }
-        }
-      }
-    }
-
-    sceneRef.current.hexManager.showReachableAndTargets(reachable, attackTargets, tState);
-  };
 
   // End Turn Execution
   const handleEndTurn = useCallback(async () => {
@@ -430,6 +460,7 @@ export default function App() {
 
     setIsAiProcessing(true);
     setSelectedUnitId(null);
+    setCombatPreview(null);
     sceneRef.current?.hexManager.clearHighlights();
 
     // 1. Process Player Economy & Reset Player Unit Movement
@@ -445,17 +476,24 @@ export default function App() {
       player.food -= 8;
       addLog(`Agrarian abundance accelerated imperial population growth (+1 Population)!`, 'economy');
     } else if (player.food <= 0 && ledger.netFood < 0) {
-      // Starvation warning
-      addLog('Grain granaries depleted! Famine threatens imperial provinces.', 'economy');
+      // Irrigation tech grants famine immunity
+      if (player.researchedTechs.includes('irrigation')) {
+        addLog('Canal Irrigation protected imperial population from starvation.', 'economy');
+      } else {
+        addLog('Grain granaries depleted! Famine threatens imperial provinces.', 'economy');
+      }
     }
 
+    const hasLogistics = player.researchedTechs.includes('logistics');
     for (const unit of curUnits.values()) {
       if (unit.ownerId === 'player') {
         unit.movesLeft = unit.maxMoves;
         unit.hasAttacked = false;
-        // Fortified units heal 4 HP
-        if (unit.isFortified && unit.hp < unit.maxHp) {
-          unit.hp = Math.min(unit.maxHp, unit.hp + 4);
+        // Fortified units heal 4 HP (or 6 HP if in city with Logistics)
+        const inCity = curTiles.get(hexToKey(unit.q, unit.r))?.cityId !== null;
+        const healAmt = inCity && hasLogistics ? 6 : unit.isFortified ? 4 : 0;
+        if (healAmt > 0 && unit.hp < unit.maxHp) {
+          unit.hp = Math.min(unit.maxHp, unit.hp + healAmt);
         }
       }
     }
@@ -467,9 +505,8 @@ export default function App() {
 
     for (const ai of aiKingdoms) {
       setAiProcessingName(`${ai.name}...`);
-      await new Promise(r => setTimeout(r, 450)); // brief visual pause for strategic tension
+      await new Promise(r => setTimeout(r, 450));
 
-      // Process AI economy
       const aiLedger = GameEngine.computeEconomicLedger(ai, curTiles, curCities, curUnits);
       ai.gold = Math.max(0, ai.gold + aiLedger.netGold);
       ai.food = Math.max(0, ai.food + aiLedger.netFood);
@@ -486,7 +523,8 @@ export default function App() {
       curTiles,
       curUnits,
       curCities,
-      stateRef.current.exploredTiles
+      stateRef.current.exploredTiles,
+      player.researchedTechs
     );
 
     const nextTurn = curTurn + 1;
@@ -512,6 +550,65 @@ export default function App() {
     setAiProcessingName('');
   }, [addLog, syncSceneVisuals]);
 
+  // Research Technology Handler
+  const handleResearchTech = useCallback((techId: TechId) => {
+    const player = kingdoms.find(k => k.id === 'player')!;
+    const numCities = Array.from(cities.values()).filter(c => c.ownerId === 'player').length;
+    const result = GameEngine.researchTechnology(player, techId, numCities);
+
+    if (result.success) {
+      setKingdoms([...kingdoms]);
+      addLog(`Imperial breakthrough! Researched ${TECHNOLOGIES[techId]?.name} for ${result.cost} Gold.`, 'system');
+
+      // Refresh highlights for selected unit
+      if (selectedUnitId) {
+        const u = units.get(selectedUnitId);
+        if (u) {
+          updateUnitHighlights(u, tiles, units, fogMap, player.researchedTechs);
+        }
+      }
+    } else {
+      addLog(result.error || 'Cannot research technology.', 'system');
+    }
+  }, [kingdoms, cities, selectedUnitId, units, tiles, fogMap, updateUnitHighlights, addLog]);
+
+  // Settler Found Colony Handler
+  const handleFoundCity = useCallback((unitId: string) => {
+    const unit = units.get(unitId);
+    const player = kingdoms.find(k => k.id === 'player')!;
+    if (!unit || unit.ownerId !== 'player' || unit.type !== 'settler') return;
+
+    const nextUnits = new Map(units);
+    const nextTiles = new Map(tiles);
+    const nextCities = new Map(cities);
+
+    const result = GameEngine.foundNewCity(unit, player, nextTiles, nextCities, nextUnits);
+    if (result.success && result.city) {
+      const { fogMap: nextFog, updatedExplored } = GameEngine.calculateFogOfWar(
+        'player',
+        nextTiles,
+        nextUnits,
+        nextCities,
+        exploredTiles,
+        player.researchedTechs
+      );
+
+      setUnits(nextUnits);
+      setTiles(nextTiles);
+      setCities(nextCities);
+      setFogMap(nextFog);
+      setExploredTiles(updatedExplored);
+      setSelectedUnitId(null);
+      setCombatPreview(null);
+      sceneRef.current?.hexManager.clearHighlights();
+
+      syncSceneVisuals(nextTiles, nextUnits, nextCities, nextFog, kingdoms);
+      addLog(`Founded new colony: ${result.city.name}! Expanded sovereign borders.`, 'conquest');
+    } else {
+      addLog(result.error || 'Cannot establish settlement here.', 'system');
+    }
+  }, [units, kingdoms, tiles, cities, exploredTiles, syncSceneVisuals, addLog]);
+
   // Unit Fortify Action
   const handleFortifyUnit = useCallback((unitId: string) => {
     const unit = units.get(unitId);
@@ -523,7 +620,7 @@ export default function App() {
 
     setUnits(new Map(units));
     sceneRef.current?.hexManager.clearHighlights();
-    addLog(`${unit.name} fortified defenses in place (+25% Defense Bonus).`, 'system');
+    addLog(`${unit.name} fortified defenses in place (+25% / +40% Defense Bonus).`, 'system');
   }, [units, addLog]);
 
   // Unit Disband Action
@@ -545,6 +642,7 @@ export default function App() {
     player.gold += refund;
 
     setSelectedUnitId(null);
+    setCombatPreview(null);
     sceneRef.current?.hexManager.clearHighlights();
 
     setUnits(nextUnits);
@@ -567,7 +665,6 @@ export default function App() {
       return;
     }
 
-    // Deduct resources
     player.gold -= uDef.costGold;
     player.food -= uDef.costFood;
     player.iron -= uDef.costIron;
@@ -586,11 +683,12 @@ export default function App() {
       defense: uDef.defense,
       range: uDef.range,
       maxMoves: uDef.moves,
-      movesLeft: 0, // cannot move on recruitment turn
+      movesLeft: 0,
       hasAttacked: true,
       visionRange: uDef.vision,
       veterancy: city.buildings.includes('barracks') ? 1 : 0,
       isFortified: true,
+      isCivilian: uDef.isCivilian,
     };
 
     const nextUnits = new Map(units);
@@ -604,7 +702,8 @@ export default function App() {
       nextTiles,
       nextUnits,
       cities,
-      exploredTiles
+      exploredTiles,
+      player.researchedTechs
     );
 
     setUnits(nextUnits);
@@ -671,12 +770,50 @@ export default function App() {
         const key = hexToKey(q, r);
         const tile = stateRef.current.tiles.get(key);
         sceneRef.current?.hexManager.setHover(tile || null);
+
+        // Calculate combat prediction preview if friendly unit selected
+        const { selectedUnitId: sUnitId, units: uMap, tiles: tMap, fogMap: fMap, kingdoms: kList } = stateRef.current;
+        if (sUnitId && tile && tile.unitId) {
+          const sUnit = uMap.get(sUnitId);
+          const tUnit = uMap.get(tile.unitId);
+          const fState = fMap.get(key);
+          if (
+            sUnit &&
+            sUnit.ownerId === 'player' &&
+            !sUnit.hasAttacked &&
+            !sUnit.isCivilian &&
+            tUnit &&
+            tUnit.ownerId !== 'player' &&
+            fState === 'visible' &&
+            hexDistance({ q: sUnit.q, r: sUnit.r }, { q: tUnit.q, r: tUnit.r }) <= sUnit.range
+          ) {
+            const playerK = kList.find(k => k.id === 'player')!;
+            const defK = kList.find(k => k.id === tUnit.ownerId);
+            const atkTile = tMap.get(hexToKey(sUnit.q, sUnit.r))!;
+            const preview = GameEngine.calculateCombatPreview(
+              sUnit,
+              tUnit,
+              tile,
+              atkTile,
+              tMap,
+              uMap,
+              playerK.researchedTechs,
+              defK?.researchedTechs || []
+            );
+            setCombatPreview({
+              attacker: sUnit,
+              defender: tUnit,
+              preview,
+              tileName: TERRAIN_DATA[tile.terrain].name,
+            });
+            return;
+          }
+        }
+        setCombatPreview(null);
       },
     });
 
     sceneRef.current = scene;
-
-    // Start initial world for Title screen backdrop
     startNewGame(7, 3);
 
     return () => {
@@ -700,8 +837,11 @@ export default function App() {
       } else if (e.code === 'Escape') {
         setSelectedUnitId(null);
         setSelectedTileKey(null);
+        setCombatPreview(null);
         sceneRef.current?.hexManager.clearHighlights();
         sceneRef.current?.hexManager.setSelection(null);
+      } else if (e.code === 'KeyT') {
+        setActiveModal('techtree');
       } else if (e.code === 'KeyL') {
         setActiveModal('ledger');
       } else if (e.code === 'KeyH') {
@@ -719,6 +859,7 @@ export default function App() {
   const selectedUnit = selectedTile?.unitId ? units.get(selectedTile.unitId) || null : null;
   const selectedCity = selectedTile?.cityId ? cities.get(selectedTile.cityId) || null : null;
   const selectedFog = selectedTileKey ? fogMap.get(selectedTileKey) || 'unexplored' : 'unexplored';
+  const playerCitiesCount = player ? Array.from(cities.values()).filter(c => c.ownerId === 'player').length : 1;
 
   const ledger = player
     ? GameEngine.computeEconomicLedger(player, tiles, cities, units)
@@ -763,12 +904,23 @@ export default function App() {
             isMuted={isMuted}
             onToggleMute={handleToggleMute}
             onOpenLedger={() => setActiveModal('ledger')}
+            onOpenTechTree={() => setActiveModal('techtree')}
             onOpenHelp={() => setActiveModal('help')}
             onEndTurn={handleEndTurn}
           />
 
           {/* Combat Log Chronicle on Top Left */}
           <CombatLogPanel logs={gameLogs} />
+
+          {/* Tactical Combat Forecast Tooltip */}
+          {combatPreview && (
+            <CombatPreviewCard
+              attacker={combatPreview.attacker}
+              defender={combatPreview.defender}
+              preview={combatPreview.preview}
+              defenderTileName={combatPreview.tileName}
+            />
+          )}
 
           {/* Selected Tile / Unit / City Inspection Panel */}
           {selectedTile && (
@@ -780,6 +932,7 @@ export default function App() {
               kingdoms={kingdoms}
               onFortifyUnit={handleFortifyUnit}
               onDisbandUnit={handleDisbandUnit}
+              onFoundCity={handleFoundCity}
               onOpenCityModal={(cId) => {
                 setActiveCityId(cId);
                 setActiveModal('city');
@@ -787,6 +940,7 @@ export default function App() {
               onClose={() => {
                 setSelectedTileKey(null);
                 setSelectedUnitId(null);
+                setCombatPreview(null);
                 sceneRef.current?.hexManager.clearHighlights();
                 sceneRef.current?.hexManager.setSelection(null);
               }}
@@ -804,6 +958,16 @@ export default function App() {
             onPanToWorld={handlePanToWorld}
           />
         </>
+      )}
+
+      {/* Technology Tree Modal */}
+      {activeModal === 'techtree' && player && (
+        <TechTreeModal
+          player={player}
+          numCities={playerCitiesCount}
+          onResearchTech={handleResearchTech}
+          onClose={() => setActiveModal(null)}
+        />
       )}
 
       {/* City Management Modal */}

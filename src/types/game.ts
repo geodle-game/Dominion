@@ -1,12 +1,48 @@
 export type TerrainType = 'grassland' | 'forest' | 'hills' | 'mountain' | 'water' | 'river';
 
-export type UnitType = 'scout' | 'infantry' | 'archer' | 'cavalry' | 'catapult';
+export type UnitType = 'scout' | 'infantry' | 'spearman' | 'archer' | 'cavalry' | 'catapult' | 'settler';
 
 export type BuildingType = 'farm' | 'barracks' | 'market' | 'workshop' | 'walls';
 
 export type FogState = 'unexplored' | 'explored' | 'visible';
 
 export type KingdomId = 'player' | 'crimson' | 'verdant' | 'amethyst';
+
+export type TechId =
+  // Agriculture & Economy
+  | 'farming'
+  | 'irrigation'
+  | 'trade'
+  | 'administration'
+  // Exploration & Expansion
+  | 'scouting'
+  | 'roads'
+  | 'settlements'
+  | 'navigation'
+  // Military
+  | 'improved_weapons'
+  | 'armour'
+  | 'tactics'
+  | 'siegecraft'
+  // Engineering & Defence
+  | 'construction'
+  | 'fortifications'
+  | 'logistics'
+  | 'advanced_engineering';
+
+export type TechBranch = 'economy' | 'exploration' | 'military' | 'engineering';
+
+export interface Technology {
+  id: TechId;
+  name: string;
+  branch: TechBranch;
+  tier: 1 | 2 | 3;
+  prerequisites: TechId[];
+  description: string;
+  gameEffects: string[];
+  baseCost: number;
+  icon: string;
+}
 
 export interface Kingdom {
   id: KingdomId;
@@ -24,6 +60,7 @@ export interface Kingdom {
   production: number;
   population: number;
   taxPolicy: 'balanced' | 'war_economy' | 'free_trade';
+  researchedTechs: TechId[];
 }
 
 export interface HexCoord {
@@ -65,6 +102,7 @@ export interface Unit {
   visionRange: number;
   veterancy: number; // 0, 1, 2 (+10% strength per level)
   isFortified: boolean;
+  isCivilian?: boolean;
 }
 
 export interface City {
@@ -99,6 +137,19 @@ export interface EconomicLedger {
   workingPopulation: number;
 }
 
+export interface CombatPreview {
+  attackerDamage: number;
+  defenderDamage: number;
+  attackerRemainingHp: number;
+  defenderRemainingHp: number;
+  isRanged: boolean;
+  flankingBonus: boolean;
+  antiCavalryBonus: boolean;
+  siegeBonus: boolean;
+  terrainDefenseBonus: number;
+  isFortified: boolean;
+}
+
 export interface CombatResult {
   attackerId: string;
   defenderId: string;
@@ -110,6 +161,9 @@ export interface CombatResult {
   attackerTile: HexCoord;
   defenderTile: HexCoord;
   isRanged: boolean;
+  flankingBonus?: boolean;
+  antiCavalryBonus?: boolean;
+  siegeBonus?: boolean;
   log: string;
 }
 
@@ -136,6 +190,9 @@ export interface UnitDefinition {
   range: number;
   vision: number;
   upkeep: number;
+  requiredTech?: TechId;
+  isCivilian?: boolean;
+  traits?: string[];
 }
 
 export interface BuildingDefinition {
@@ -149,6 +206,7 @@ export interface BuildingDefinition {
   foodYield: number;
   prodYield: number;
   defenseBonus: number;
+  requiredTech?: TechId;
 }
 
 export type GamePhase = 'title' | 'playing' | 'paused' | 'victory' | 'defeat';

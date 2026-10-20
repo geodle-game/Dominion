@@ -1,7 +1,7 @@
 import React from 'react';
 import { City, FogState, HexTile, Kingdom, Unit } from '../types/game';
 import { TERRAIN_DATA, UNIT_DEFINITIONS } from '../game/constants';
-import { Shield, Swords, Footprints, Eye, Castle, ChevronRight, Crosshair, Trash2 } from 'lucide-react';
+import { Shield, Swords, Footprints, Eye, Castle, ChevronRight, Crosshair, Trash2, Tent, Sparkles } from 'lucide-react';
 import { sounds } from '../audio/soundManager';
 
 interface TileInfoPanelProps {
@@ -12,6 +12,7 @@ interface TileInfoPanelProps {
   kingdoms: Kingdom[];
   onFortifyUnit: (unitId: string) => void;
   onDisbandUnit: (unitId: string) => void;
+  onFoundCity?: (unitId: string) => void;
   onOpenCityModal: (cityId: string) => void;
   onClose: () => void;
   onFocusTile: (q: number, r: number) => void;
@@ -25,6 +26,7 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
   kingdoms,
   onFortifyUnit,
   onDisbandUnit,
+  onFoundCity,
   onOpenCityModal,
   onClose,
   onFocusTile,
@@ -35,9 +37,18 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
   const owner = tile.ownerId ? kingdoms.find(k => k.id === tile.ownerId) : null;
   const isFriendlyUnit = unit?.ownerId === 'player';
   const isFriendlyCity = city?.ownerId === 'player';
+  const uDef = unit ? UNIT_DEFINITIONS[unit.type] : null;
+
+  const canFoundCity =
+    unit &&
+    unit.type === 'settler' &&
+    unit.ownerId === 'player' &&
+    !tile.cityId &&
+    tile.terrain !== 'mountain' &&
+    tile.terrain !== 'water';
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-4 z-20 w-80 rounded-xl border border-slate-700/80 bg-slate-900/95 p-3.5 text-slate-100 shadow-2xl backdrop-blur-none select-none">
+    <div className="pointer-events-auto absolute bottom-4 left-4 z-20 w-84 rounded-xl border border-slate-700/80 bg-slate-900/95 p-3.5 text-slate-100 shadow-2xl backdrop-blur-none select-none">
       {/* Top Header: Coordinates & Terrain */}
       <div className="flex items-center justify-between border-b border-slate-800 pb-2">
         <div className="flex items-center gap-2">
@@ -58,14 +69,14 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
               sounds.playSelect();
               onFocusTile(tile.q, tile.r);
             }}
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-amber-400 transition"
+            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-amber-400 transition cursor-pointer"
             title="Focus camera here"
           >
             <Crosshair className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer"
           >
             ✕
           </button>
@@ -108,7 +119,7 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded bg-slate-700 font-bold text-xs text-amber-400">
-                ⚔️
+                {unit.type === 'settler' ? '⛺' : '⚔️'}
               </span>
               <div>
                 <h4 className="font-bold text-xs text-slate-100">{unit.name}</h4>
@@ -124,6 +135,14 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
               </span>
             )}
           </div>
+
+          {/* Unit Traits */}
+          {uDef?.traits && uDef.traits.length > 0 && (
+            <div className="mt-1.5 rounded bg-amber-950/30 border border-amber-500/30 px-2 py-1 text-[10px] text-amber-300 flex items-center gap-1">
+              <Sparkles className="h-3 w-3 shrink-0 text-amber-400" />
+              <span>{uDef.traits[0]}</span>
+            </div>
+          )}
 
           {/* Unit Health Bar */}
           <div className="mt-2">
@@ -171,28 +190,49 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
 
           {/* Unit Actions (Only for player-controlled units) */}
           {isFriendlyUnit && (
-            <div className="mt-2.5 flex items-center gap-1.5 pt-1 border-t border-slate-700/60">
-              <button
-                disabled={unit.movesLeft === 0 || unit.isFortified}
-                onClick={() => {
-                  sounds.playSelect();
-                  onFortifyUnit(unit.id);
-                }}
-                className="flex-1 rounded bg-slate-700/80 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-600 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                title="Fortify unit in position (+25% Defense)"
-              >
-                Fortify
-              </button>
-              <button
-                onClick={() => {
-                  sounds.playSelect();
-                  onDisbandUnit(unit.id);
-                }}
-                className="rounded bg-rose-950/60 border border-rose-800/40 p-1 text-rose-300 hover:bg-rose-900/60 transition cursor-pointer"
-                title="Disband unit"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+            <div className="mt-2.5 flex flex-col gap-1.5 pt-1 border-t border-slate-700/60">
+              {/* Special Settler Found City Action */}
+              {unit.type === 'settler' && onFoundCity && (
+                <button
+                  disabled={!canFoundCity}
+                  onClick={() => {
+                    sounds.playCapture();
+                    onFoundCity(unit.id);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition shadow cursor-pointer ${
+                    canFoundCity
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 hover:from-emerald-400 hover:to-teal-500 active:scale-95'
+                      : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  <Tent className="h-3.5 w-3.5" />
+                  <span>Found New Colony Here</span>
+                </button>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  disabled={unit.movesLeft === 0 || unit.isFortified}
+                  onClick={() => {
+                    sounds.playSelect();
+                    onFortifyUnit(unit.id);
+                  }}
+                  className="flex-1 rounded bg-slate-700/80 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-600 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  title="Fortify unit in position (+25% / +40% Defense)"
+                >
+                  Fortify
+                </button>
+                <button
+                  onClick={() => {
+                    sounds.playSelect();
+                    onDisbandUnit(unit.id);
+                  }}
+                  className="rounded bg-rose-950/60 border border-rose-800/40 p-1 text-rose-300 hover:bg-rose-900/60 transition cursor-pointer"
+                  title="Disband unit (Recovers gold)"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>

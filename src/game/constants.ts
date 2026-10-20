@@ -1,14 +1,271 @@
-import { BuildingDefinition, Kingdom, KingdomId, UnitDefinition } from '../types/game';
+import { BuildingDefinition, Kingdom, Technology, TechId, UnitDefinition } from '../types/game';
+
+export const BASE_TECH_COST: Record<1 | 2 | 3, number> = {
+  1: 40,
+  2: 70,
+  3: 120,
+};
+
+export const CITY_SCALE_TECH_COST: Record<1 | 2 | 3, number> = {
+  1: 12,
+  2: 20,
+  3: 35,
+};
+
+/**
+ * Transparent Polytopia-inspired research cost formula:
+ * Cost = BaseCost(Tier) + (NumberOfCities - 1) * CityScaling(Tier)
+ */
+export function calculateTechCost(tier: 1 | 2 | 3, numCities: number): number {
+  const base = BASE_TECH_COST[tier] || 40;
+  const scale = CITY_SCALE_TECH_COST[tier] || 15;
+  const extraCities = Math.max(0, numCities - 1);
+  return base + extraCities * scale;
+}
+
+export const TECHNOLOGIES: Record<TechId, Technology> = {
+  // 1. Agriculture and Economy
+  farming: {
+    id: 'farming',
+    name: 'Agrarian Farming',
+    branch: 'economy',
+    tier: 1,
+    prerequisites: [],
+    baseCost: BASE_TECH_COST[1],
+    icon: '🌾',
+    description: 'Systematic crop rotation, granaries, and plough cultivation for rapid agrarian expansion.',
+    gameEffects: [
+      'Unlocks Irrigated Farmlands building (+5 Food/turn)',
+      '+1 Base Food harvest across all fertile grassland territory',
+    ],
+  },
+  irrigation: {
+    id: 'irrigation',
+    name: 'Canal Irrigation',
+    branch: 'economy',
+    tier: 2,
+    prerequisites: ['farming'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '💧',
+    description: 'Engineered sluices, aqueducts, and river diversions that drought-proof provincial granaries.',
+    gameEffects: [
+      '+1 Food yield per river or coastal water tile in territory',
+      'Famine Immunity: Population no longer starves during temporary food deficits',
+    ],
+  },
+  trade: {
+    id: 'trade',
+    name: 'Mercantile Trade',
+    branch: 'economy',
+    tier: 2,
+    prerequisites: ['farming'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '🪙',
+    description: 'Establish currency mints, merchant leagues, and caravan routes between imperial strongholds.',
+    gameEffects: [
+      'Unlocks Grand Bazaar building (+6 Gold/turn)',
+      '+2 Gold per turn per owned settlement from inter-city trade routes',
+    ],
+  },
+  administration: {
+    id: 'administration',
+    name: 'Imperial Ministry',
+    branch: 'economy',
+    tier: 3,
+    prerequisites: ['trade'],
+    baseCost: BASE_TECH_COST[3],
+    icon: '📜',
+    description: 'Centralised bureaucratic tax registries, census audits, and provincial judicial oversight.',
+    gameEffects: [
+      '+15% Total Gross Empire Tax & Tariff revenue',
+      '+2 Max Population capacity across all cities',
+    ],
+  },
+
+  // 2. Exploration and Expansion
+  scouting: {
+    id: 'scouting',
+    name: 'Outrider Scouting',
+    branch: 'exploration',
+    tier: 1,
+    prerequisites: [],
+    baseCost: BASE_TECH_COST[1],
+    icon: '🔭',
+    description: 'Cartographic triangulation, beacon towers, and light outriders surveying uncharted terrain.',
+    gameEffects: [
+      '+1 Sight & Vision radius for all Scout units (reveals 4 rings)',
+      'Scouts ignore elevated movement cost on Hills',
+    ],
+  },
+  roads: {
+    id: 'roads',
+    name: 'Paved Highways',
+    branch: 'exploration',
+    tier: 2,
+    prerequisites: ['scouting'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '🛣️',
+    description: 'Paved stone arterial roads connecting provincial capitals, cutting logistics friction.',
+    gameEffects: [
+      'Units moving across friendly sovereign territory consume only 0.5 MP per tile',
+      '+1 Movement point for all cavalry and infantry starting in friendly territory',
+    ],
+  },
+  settlements: {
+    id: 'settlements',
+    name: 'Frontier Colonisation',
+    branch: 'exploration',
+    tier: 2,
+    prerequisites: ['scouting'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '⛺',
+    description: 'Organise wagon trains of pioneer homesteaders to establish permanent fortified townships.',
+    gameEffects: [
+      'Unlocks Frontier Settler recruitment at any friendly city',
+      'Settlers can found new Level 1 Cities on any unclaimed fertile hex',
+    ],
+  },
+  navigation: {
+    id: 'navigation',
+    name: 'Naval Navigation',
+    branch: 'exploration',
+    tier: 3,
+    prerequisites: ['roads', 'settlements'],
+    baseCost: BASE_TECH_COST[3],
+    icon: '⛵',
+    description: 'Shallow-draft transport vessels and coastal compass navigation allowing armies to traverse rivers and sea.',
+    gameEffects: [
+      'Land units can embark into River and Water tiles (Move cost 2 instead of impassable)',
+      '+1 Vision across all water and coastline tiles',
+    ],
+  },
+
+  // 3. Military
+  improved_weapons: {
+    id: 'improved_weapons',
+    name: 'Forged Steel Weapons',
+    branch: 'military',
+    tier: 1,
+    prerequisites: [],
+    baseCost: BASE_TECH_COST[1],
+    icon: '⚔️',
+    description: 'Tempered steel broadswords, crossguards, and iron weapon workshops for disciplined infantry.',
+    gameEffects: [
+      'Unlocks Royal Swordsmen (Heavy Melee Infantry) recruitment',
+      '+1 Attack strength to all melee regiments',
+    ],
+  },
+  armour: {
+    id: 'armour',
+    name: 'Plate Armour & Phalanx',
+    branch: 'military',
+    tier: 2,
+    prerequisites: ['improved_weapons'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '🛡️',
+    description: 'Interlocking plate cuirasses and heavy pike formations designed to neutralize cavalry charges.',
+    gameEffects: [
+      'Unlocks Phalanx Spearmen recruitment',
+      'Spearmen gain Anti-Cavalry trait (+50% combat bonus vs Knights)',
+    ],
+  },
+  tactics: {
+    id: 'tactics',
+    name: 'Battlefield Tactics',
+    branch: 'military',
+    tier: 2,
+    prerequisites: ['improved_weapons'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '🎯',
+    description: 'Disciplined volley fire, flanking drills, and combined-arms battle management.',
+    gameEffects: [
+      'Unlocks Longbowmen (Ranged Infantry) recruitment',
+      'Flanking Maneuver: Attacking an enemy adjacent to another ally deals +25% bonus damage',
+    ],
+  },
+  siegecraft: {
+    id: 'siegecraft',
+    name: 'Heavy Siegecraft',
+    branch: 'military',
+    tier: 3,
+    prerequisites: ['tactics'],
+    baseCost: BASE_TECH_COST[3],
+    icon: '☄️',
+    description: 'Torsion catapults, counterweight trebuchets, and incendiary stone missiles to pulverize citadels.',
+    gameEffects: [
+      'Unlocks Siege Trebuchet recruitment',
+      'Trebuchets deal +100% damage against Cities, Citadels, and Fortified garrisons',
+    ],
+  },
+
+  // 4. Engineering and Defence
+  construction: {
+    id: 'construction',
+    name: 'Civic Architecture',
+    branch: 'engineering',
+    tier: 1,
+    prerequisites: [],
+    baseCost: BASE_TECH_COST[1],
+    icon: '🏛️',
+    description: 'Dressed ashlar stone masonry, crane tackles, and metallurgical blast furnaces.',
+    gameEffects: [
+      'Unlocks Guild Foundry / Workshop building (+5 Production/turn)',
+      '+1 Production per turn on all Hills and Mountain tiles within territory',
+    ],
+  },
+  fortifications: {
+    id: 'fortifications',
+    name: 'Stone Bastions',
+    branch: 'engineering',
+    tier: 2,
+    prerequisites: ['construction'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '🏰',
+    description: 'Deep moats, portcullises, and curtain walls with arrow slits designed to repel assaults.',
+    gameEffects: [
+      'Unlocks Stone Citadel Walls building (+30 City Defense)',
+      'Fortified units gain an additional +15% defense bonus (total +40%)',
+    ],
+  },
+  logistics: {
+    id: 'logistics',
+    name: 'Military Logistics',
+    branch: 'engineering',
+    tier: 2,
+    prerequisites: ['construction'],
+    baseCost: BASE_TECH_COST[2],
+    icon: '📦',
+    description: 'Organised baggage trains, quartermaster supply caches, and weapon depots across the empire.',
+    gameEffects: [
+      'Reduces gold upkeep of all units by 1 Gold/turn (minimum 1 Gold)',
+      'Units can heal +2 additional HP per turn when inside friendly cities',
+    ],
+  },
+  advanced_engineering: {
+    id: 'advanced_engineering',
+    name: 'Grand Engineering',
+    branch: 'engineering',
+    tier: 3,
+    prerequisites: ['fortifications'],
+    baseCost: BASE_TECH_COST[3],
+    icon: '⚙️',
+    description: 'Hydraulic siege winches, reinforced redoubts, and master masonry for an unshakeable realm.',
+    gameEffects: [
+      '+1 Attack Range for all Siege Trebuchets (Range 3)',
+      '+10 Permanent Maximum Defense to all owned and captured Cities',
+    ],
+  },
+};
 
 export const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
   scout: {
     type: 'scout',
     name: 'Outrider Vanguard',
     description: 'Fast reconnaissance unit with superior sight range and high mobility.',
-    costGold: 45,
+    costGold: 40,
     costFood: 15,
     costIron: 0,
-    productionCost: 35,
+    productionCost: 30,
     attack: 5,
     defense: 4,
     maxHp: 16,
@@ -16,11 +273,12 @@ export const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
     range: 1,
     vision: 3,
     upkeep: 1,
+    traits: ['Reconnaissance: High MP, reveals unexplored fog rapidly'],
   },
   infantry: {
     type: 'infantry',
     name: 'Royal Swordsmen',
-    description: 'Disciplined heavy melee infantry. High defense and fortification power.',
+    description: 'Disciplined heavy melee infantry. High defense, solid damage, and fortify endurance.',
     costGold: 75,
     costFood: 25,
     costIron: 10,
@@ -32,6 +290,26 @@ export const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
     range: 1,
     vision: 2,
     upkeep: 2,
+    requiredTech: 'improved_weapons',
+    traits: ['Line Infantry: Standard reliable frontline combatant'],
+  },
+  spearman: {
+    type: 'spearman',
+    name: 'Phalanx Spearman',
+    description: 'Heavily armored polearm phalanx specializing in repelling cavalry shock assaults.',
+    costGold: 65,
+    costFood: 20,
+    costIron: 10,
+    productionCost: 50,
+    attack: 7,
+    defense: 10,
+    maxHp: 22,
+    moves: 2,
+    range: 1,
+    vision: 2,
+    upkeep: 2,
+    requiredTech: 'armour',
+    traits: ['Anti-Cavalry: +50% combat effectiveness vs Knights & Cavalry'],
   },
   archer: {
     type: 'archer',
@@ -40,7 +318,7 @@ export const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
     costGold: 70,
     costFood: 20,
     costIron: 5,
-    productionCost: 50,
+    productionCost: 45,
     attack: 8,
     defense: 5,
     maxHp: 18,
@@ -48,11 +326,13 @@ export const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
     range: 2,
     vision: 2,
     upkeep: 2,
+    requiredTech: 'tactics',
+    traits: ['Ranged Volley: 2-tile attack range without melee retaliation'],
   },
   cavalry: {
     type: 'cavalry',
     name: 'Knight Hospitaller',
-    description: 'Fierce shock cavalry with devastating flank charges on open plains.',
+    description: 'Fierce shock cavalry with high speed (3 MP) and crushing charges on open ground.',
     costGold: 125,
     costFood: 35,
     costIron: 20,
@@ -64,22 +344,44 @@ export const UNIT_DEFINITIONS: Record<string, UnitDefinition> = {
     range: 1,
     vision: 2,
     upkeep: 3,
+    traits: ['Shock Cavalry: 3 MP, strong flanker, vulnerable to Spearmen'],
   },
   catapult: {
     type: 'catapult',
     name: 'Siege Trebuchet',
-    description: 'Heavy artillery delivering devastating damage to fortified cities from long range.',
+    description: 'Heavy artillery delivering devastating damage to fortified citadels from long range.',
     costGold: 140,
     costFood: 15,
     costIron: 35,
     productionCost: 95,
-    attack: 15,
+    attack: 16,
     defense: 3,
     maxHp: 16,
     moves: 1,
     range: 2,
     vision: 2,
     upkeep: 3,
+    requiredTech: 'siegecraft',
+    traits: ['Siege Specialist: +100% damage vs Citadels, Walls, and Fortified garrisons'],
+  },
+  settler: {
+    type: 'settler',
+    name: 'Frontier Settler',
+    description: 'Pioneers carrying building supplies and seed. Can establish a new City on unclaimed fertile land.',
+    costGold: 110,
+    costFood: 40,
+    costIron: 0,
+    productionCost: 65,
+    attack: 0,
+    defense: 4,
+    maxHp: 12,
+    moves: 2,
+    range: 1,
+    vision: 2,
+    upkeep: 1,
+    requiredTech: 'settlements',
+    isCivilian: true,
+    traits: ['City Founder: Action to found a new level 1 City on current hex'],
   },
 };
 
@@ -95,6 +397,7 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     foodYield: 5,
     prodYield: 0,
     defenseBonus: 0,
+    requiredTech: 'farming',
   },
   market: {
     type: 'market',
@@ -107,11 +410,12 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     foodYield: 0,
     prodYield: 1,
     defenseBonus: 0,
+    requiredTech: 'trade',
   },
   workshop: {
     type: 'workshop',
     name: 'Guild Foundry',
-    description: 'Industrial smithy that provides +4 production per turn to accelerate construction.',
+    description: 'Industrial smithy that provides +5 production per turn to accelerate construction.',
     costGold: 85,
     costProd: 60,
     upkeep: 2,
@@ -119,6 +423,7 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     foodYield: 0,
     prodYield: 5,
     defenseBonus: 0,
+    requiredTech: 'construction',
   },
   barracks: {
     type: 'barracks',
@@ -143,6 +448,7 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     foodYield: 0,
     prodYield: 0,
     defenseBonus: 30,
+    requiredTech: 'fortifications',
   },
 };
 
@@ -163,6 +469,7 @@ export const INITIAL_FACTIONS: Kingdom[] = [
     production: 10,
     population: 6,
     taxPolicy: 'balanced',
+    researchedTechs: ['farming'],
   },
   {
     id: 'crimson',
@@ -180,6 +487,7 @@ export const INITIAL_FACTIONS: Kingdom[] = [
     production: 10,
     population: 6,
     taxPolicy: 'war_economy',
+    researchedTechs: ['improved_weapons'],
   },
   {
     id: 'verdant',
@@ -197,6 +505,7 @@ export const INITIAL_FACTIONS: Kingdom[] = [
     production: 10,
     population: 7,
     taxPolicy: 'balanced',
+    researchedTechs: ['scouting'],
   },
   {
     id: 'amethyst',
@@ -214,6 +523,7 @@ export const INITIAL_FACTIONS: Kingdom[] = [
     production: 10,
     population: 6,
     taxPolicy: 'free_trade',
+    researchedTechs: ['construction'],
   },
 ];
 

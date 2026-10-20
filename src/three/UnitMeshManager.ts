@@ -307,6 +307,94 @@ export class UnitMeshManager {
       lance.rotation.x = Math.PI / 2;
       lance.castShadow = true;
       group.add(lance);
+    } else if (unit.type === 'spearman') {
+      // Phalanx Spearman
+      // 1. Torso / Cuirass
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.45, 6), steelMat);
+      torso.position.y = 0.5;
+      torso.castShadow = true;
+      group.add(torso);
+
+      // 2. Faction Sash
+      const sash = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.46, 0.26), factionMat);
+      sash.position.y = 0.5;
+      group.add(sash);
+
+      // 3. Corinthian / Phalanx Crested Helm
+      const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.3, 6), goldMat);
+      helm.position.y = 0.85;
+      helm.castShadow = true;
+      group.add(helm);
+
+      const crest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.25, 0.3), factionMat);
+      crest.position.set(0, 1.05, 0);
+      group.add(crest);
+
+      // 4. Large Round Hoplon Shield
+      const shieldGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.06, 12);
+      shieldGeo.rotateZ(Math.PI / 2);
+      const shield = new THREE.Mesh(shieldGeo, factionMat);
+      shield.position.set(-0.32, 0.52, 0.05);
+      shield.castShadow = true;
+      group.add(shield);
+
+      const shieldBoss = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), goldMat);
+      shieldBoss.position.set(-0.35, 0.52, 0.05);
+      group.add(shieldBoss);
+
+      // 5. Long Thrusting Pike / Spear
+      const pike = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 5), leatherMat);
+      pike.position.set(0.28, 0.9, 0.1);
+      pike.rotation.x = -0.2;
+      pike.castShadow = true;
+      group.add(pike);
+
+      const spearTip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.28, 5), steelMat);
+      spearTip.position.set(0.28, 1.7, 0.26);
+      spearTip.rotation.x = -0.2;
+      spearTip.castShadow = true;
+      group.add(spearTip);
+    } else if (unit.type === 'settler') {
+      // Pioneer Covered Wagon & Settlers
+      // 1. Wagon Box
+      const wagon = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.22, 0.8), leatherMat);
+      wagon.position.y = 0.26;
+      wagon.castShadow = true;
+      group.add(wagon);
+
+      // 2. White Arched Canvas Canopy
+      const canvasMat = this.getMaterial(0xf1f5f9, 0.8, 0.05);
+      const canopyGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.75, 8, 1, false, 0, Math.PI);
+      canopyGeo.rotateX(Math.PI / 2);
+      canopyGeo.rotateZ(Math.PI / 2);
+      const canopy = new THREE.Mesh(canopyGeo, canvasMat);
+      canopy.position.set(0, 0.42, 0);
+      canopy.castShadow = true;
+      group.add(canopy);
+
+      // 3. Faction Banner on Wagon Rear
+      const flagSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 4), leatherMat);
+      flagSpire.position.set(-0.25, 0.65, -0.38);
+      group.add(flagSpire);
+
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.18), factionMat);
+      flag.position.set(-0.12, 0.88, -0.38);
+      group.add(flag);
+
+      // 4. Four Wooden Wagon Wheels
+      const wWheelMat = this.getMaterial(0x451a03, 0.9, 0.1);
+      const wheelGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.06, 8);
+      wheelGeo.rotateZ(Math.PI / 2);
+      [
+        [-0.32, 0.16, -0.28],
+        [0.32, 0.16, -0.28],
+        [-0.32, 0.16, 0.28],
+        [0.32, 0.16, 0.28],
+      ].forEach(([x, y, z]) => {
+        const w = new THREE.Mesh(wheelGeo, wWheelMat);
+        w.position.set(x, y, z);
+        group.add(w);
+      });
     } else {
       // Catapult / Trebuchet
       const carriage = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.25, 0.9), leatherMat);

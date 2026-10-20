@@ -11,6 +11,7 @@ interface TileInfoPanelProps {
   fogState: FogState;
   kingdoms: Kingdom[];
   onFortifyUnit: (unitId: string) => void;
+  onUnfortifyUnit?: (unitId: string) => void;
   onDisbandUnit: (unitId: string) => void;
   onFoundCity?: (unitId: string) => void;
   onOpenCityModal: (cityId: string) => void;
@@ -25,6 +26,7 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
   fogState,
   kingdoms,
   onFortifyUnit,
+  onUnfortifyUnit,
   onDisbandUnit,
   onFoundCity,
   onOpenCityModal,
@@ -191,6 +193,18 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
           {/* Unit Actions (Only for player-controlled units) */}
           {isFriendlyUnit && (
             <div className="mt-2.5 flex flex-col gap-1.5 pt-1 border-t border-slate-700/60">
+              {/* Movement Status Guidance Banner */}
+              {unit.movesLeft > 0 ? (
+                <div className="rounded bg-emerald-950/40 border border-emerald-500/30 px-2 py-1 text-[11px] text-emerald-300 flex items-center gap-1.5">
+                  <Footprints className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  <span>Ready to move: Click any green-highlighted hex on map</span>
+                </div>
+              ) : (
+                <div className="rounded bg-slate-900/60 border border-slate-700/40 px-2 py-1 text-[10px] text-slate-400 italic text-center">
+                  Movement spent · Refills on next turn (Space)
+                </div>
+              )}
+
               {/* Special Settler Found City Action */}
               {unit.type === 'settler' && onFoundCity && (
                 <button
@@ -211,17 +225,30 @@ export const TileInfoPanel: React.FC<TileInfoPanelProps> = ({
               )}
 
               <div className="flex items-center gap-1.5">
-                <button
-                  disabled={unit.movesLeft === 0 || unit.isFortified}
-                  onClick={() => {
-                    sounds.playSelect();
-                    onFortifyUnit(unit.id);
-                  }}
-                  className="flex-1 rounded bg-slate-700/80 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-600 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                  title="Fortify unit in position (+25% / +40% Defense)"
-                >
-                  Fortify
-                </button>
+                {unit.isFortified ? (
+                  <button
+                    onClick={() => {
+                      sounds.playSelect();
+                      if (onUnfortifyUnit) onUnfortifyUnit(unit.id);
+                    }}
+                    className="flex-1 rounded bg-sky-800/80 hover:bg-sky-700 py-1 text-[11px] font-bold text-sky-100 transition cursor-pointer border border-sky-500/50"
+                    title="Wake up unit (removes fortified stance)"
+                  >
+                    Wake Up / Unfortify
+                  </button>
+                ) : (
+                  <button
+                    disabled={unit.movesLeft === 0}
+                    onClick={() => {
+                      sounds.playSelect();
+                      onFortifyUnit(unit.id);
+                    }}
+                    className="flex-1 rounded bg-slate-700/80 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-600 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    title="Fortify unit in position (+25% / +40% Defense)"
+                  >
+                    Fortify
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     sounds.playSelect();

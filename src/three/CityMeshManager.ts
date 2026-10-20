@@ -52,6 +52,13 @@ export class CityMeshManager {
         this.cityMeshes.set(id, cityGroup);
       }
 
+      // Synchronize userData on city group and all tower/keep children
+      const cityUserData = { tileKey, q: city.q, r: city.r, cityId: city.id, type: 'city' };
+      cityGroup.userData = cityUserData;
+      cityGroup.traverse((child) => {
+        child.userData = cityUserData;
+      });
+
       cityGroup.visible = isVisible;
     }
   }

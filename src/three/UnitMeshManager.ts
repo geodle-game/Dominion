@@ -95,6 +95,13 @@ export class UnitMeshManager {
         this.unitMeshes.set(id, data);
       }
 
+      // Keep userData synchronized on unit group and all children for raycasting
+      const unitUserData = { tileKey, q: unit.q, r: unit.r, unitId: unit.id, type: 'unit' };
+      data.meshGroup.userData = unitUserData;
+      data.meshGroup.traverse((child) => {
+        child.userData = unitUserData;
+      });
+
       // Check if unit moved to a new tile
       if (Math.abs(data.targetPos.x - worldPos.x) > 0.05 || Math.abs(data.targetPos.z - worldPos.z) > 0.05) {
         data.targetPos.set(worldPos.x, groundY, worldPos.z);

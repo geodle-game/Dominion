@@ -400,6 +400,14 @@ export default function App() {
             player.researchedTechs
           );
 
+          // Update authoritative stateRef synchronously
+          stateRef.current.tiles = nextTiles;
+          stateRef.current.units = nextUnits;
+          stateRef.current.cities = nextCities;
+          stateRef.current.fogMap = nextFog;
+          stateRef.current.exploredTiles = updatedExplored;
+          stateRef.current.selectedTileKey = clickKey;
+
           setUnits(nextUnits);
           setTiles(nextTiles);
           setCities(nextCities);
@@ -408,11 +416,20 @@ export default function App() {
           setSelectedTileKey(clickKey);
           setCombatPreview(null);
 
+          // Update selection highlight to follow the moved unit
+          sceneRef.current?.hexManager.setSelection(clickedTile);
           syncSceneVisuals(nextTiles, nextUnits, nextCities, nextFog, curKingdoms);
+
+          addLog(
+            `${selectedUnit.name} advanced to ${TERRAIN_DATA[clickedTile.terrain]?.name || 'hex'} (${q}, ${r}). [${selectedUnit.movesLeft} MP left]`,
+            'system'
+          );
 
           if (selectedUnit.movesLeft > 0) {
             updateUnitHighlights(selectedUnit, nextTiles, nextUnits, nextFog, player.researchedTechs);
           } else {
+            stateRef.current.selectedUnitId = null;
+            setSelectedUnitId(null);
             sceneRef.current?.hexManager.clearHighlights();
           }
 
@@ -429,15 +446,18 @@ export default function App() {
       // Case 2: Standard tile/unit selection
       sounds.playSelect();
       setSelectedTileKey(clickKey);
+      stateRef.current.selectedTileKey = clickKey;
       setCombatPreview(null);
       sceneRef.current?.hexManager.setSelection(clickedTile);
 
       const unitOnTile = clickedTile.unitId ? curUnits.get(clickedTile.unitId) : null;
       if (unitOnTile && unitOnTile.ownerId === 'player') {
         setSelectedUnitId(unitOnTile.id);
+        stateRef.current.selectedUnitId = unitOnTile.id;
         updateUnitHighlights(unitOnTile, curTiles, curUnits, curFog, player.researchedTechs);
       } else {
         setSelectedUnitId(null);
+        stateRef.current.selectedUnitId = null;
         sceneRef.current?.hexManager.clearHighlights();
       }
     },
@@ -622,6 +642,21 @@ export default function App() {
     sceneRef.current?.hexManager.clearHighlights();
     addLog(`${unit.name} fortified defenses in place (+25% / +40% Defense Bonus).`, 'system');
   }, [units, addLog]);
+
+  // Unit Unfortify Action
+  const handleUnfortifyUnit = useCallback((unitId: string) => {
+    const unit = units.get(unitId);
+    if (!unit || unit.ownerId !== 'player') return;
+
+    unit.isFortified = false;
+    setUnits(new Map(units));
+    addLog(`${unit.name} broke defensive fortification and stands ready to maneuver.`, 'system');
+
+    const player = kingdoms.find(k => k.id === 'player');
+    if (selectedUnitId === unitId && unit.movesLeft > 0) {
+      updateUnitHighlights(unit, tiles, units, fogMap, player?.researchedTechs || []);
+    }
+  }, [units, kingdoms, selectedUnitId, tiles, fogMap, updateUnitHighlights, addLog]);
 
   // Unit Disband Action
   const handleDisbandUnit = useCallback((unitId: string) => {
@@ -931,6 +966,7 @@ export default function App() {
               fogState={selectedFog}
               kingdoms={kingdoms}
               onFortifyUnit={handleFortifyUnit}
+              onUnfortifyUnit={handleUnfortifyUnit}
               onDisbandUnit={handleDisbandUnit}
               onFoundCity={handleFoundCity}
               onOpenCityModal={(cId) => {

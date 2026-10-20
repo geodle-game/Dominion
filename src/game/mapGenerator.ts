@@ -239,7 +239,7 @@ export function generateWorldMap(
       hasAttacked: false,
       visionRange: swordsmanDef.vision,
       veterancy: 0,
-      isFortified: true,
+      isFortified: false,
     };
     units.set(swordsmanId, swordsman);
     capTile.unitId = swordsmanId;

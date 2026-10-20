@@ -5,8 +5,7 @@ import { CityMeshManager } from './CityMeshManager';
 import { HexMeshManager } from './HexMeshManager';
 import { UnitMeshManager } from './UnitMeshManager';
 import { VfxManager } from './VfxManager';
-import { City, FogState, HexTile, Kingdom, Unit } from '../types/game';
-import { HEX_RADIUS } from '../game/hexUtils';
+import { HEX_RADIUS, worldToHex } from '../game/hexUtils';
 
 export interface SceneCallbacks {
   onTileClick: (q: number, r: number) => void;
@@ -134,9 +133,9 @@ export class ThreeScene {
     });
 
     el.addEventListener('pointerup', (e) => {
-      // Only trigger if click didn't drag camera
+      // Trigger click if not dragging camera (allow 14px threshold for natural mouse/touchpad clicks)
       const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
-      if (dist < 6 && e.button === 0) {
+      if (dist < 14 && e.button === 0) {
         this.handleClick(e.clientX, e.clientY);
       }
     });
@@ -156,18 +155,33 @@ export class ThreeScene {
     );
 
     this.raycaster.setFromCamera(mouse, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.hexManager.group.children, true);
+
+    // Raycast against Units, Cities, and Hex Terrain (including move & attack indicator overlays)
+    const interactiveGroups = [
+      this.unitManager.group,
+      this.cityManager.group,
+      this.hexManager.group,
+    ];
+    const intersects = this.raycaster.intersectObjects(interactiveGroups, true);
 
     for (const hit of intersects) {
       let curr: THREE.Object3D | null = hit.object;
-      while (curr && curr !== this.hexManager.group) {
-        if (curr.userData && curr.userData.tileKey !== undefined) {
+      while (curr && curr.parent) {
+        if (curr.userData && curr.userData.tileKey !== undefined && curr.userData.q !== undefined && curr.userData.r !== undefined) {
           const { q, r } = curr.userData;
           this.callbacks.onTileClick(q, r);
           return;
         }
         curr = curr.parent;
       }
+    }
+
+    // Mathematical ground plane fallback if clicked slightly between hex edges
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const target = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(plane, target)) {
+      const hex = worldToHex(target.x, target.z);
+      this.callbacks.onTileClick(hex.q, hex.r);
     }
   }
 
@@ -201,15 +215,20 @@ export class ThreeScene {
     // Hover raycast
     if (this.pointer.x > -2 && this.pointer.y > -2) {
       this.raycaster.setFromCamera(this.pointer, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.hexManager.group.children, true);
+      const interactiveGroups = [
+        this.unitManager.group,
+        this.cityManager.group,
+        this.hexManager.group,
+      ];
+      const intersects = this.raycaster.intersectObjects(interactiveGroups, true);
       let hitKey: string | null = null;
       let hitQ: number = 0;
       let hitR: number = 0;
 
       for (const hit of intersects) {
         let curr: THREE.Object3D | null = hit.object;
-        while (curr && curr !== this.hexManager.group) {
-          if (curr.userData && curr.userData.tileKey !== undefined) {
+        while (curr && curr.parent) {
+          if (curr.userData && curr.userData.tileKey !== undefined && curr.userData.q !== undefined && curr.userData.r !== undefined) {
             hitKey = curr.userData.tileKey;
             hitQ = curr.userData.q;
             hitR = curr.userData.r;
@@ -220,10 +239,18 @@ export class ThreeScene {
         if (hitKey) break;
       }
 
+      if (this.container) {
+        this.container.style.cursor = hitKey ? 'pointer' : 'default';
+      }
+
       if (hitKey !== this.hoveredKey) {
         this.hoveredKey = hitKey;
-        if (hitKey && this.callbacks.onTileHover) {
-          this.callbacks.onTileHover(hitQ, hitR);
+        if (this.callbacks.onTileHover) {
+          if (hitKey) {
+            this.callbacks.onTileHover(hitQ, hitR);
+          } else {
+            this.callbacks.onTileHover(-999, -999);
+          }
         }
       }
     }

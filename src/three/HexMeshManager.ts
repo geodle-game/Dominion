@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { FogState, HexTile, Kingdom } from '../types/game';
 import { TERRAIN_DATA } from '../game/constants';
-import { HEX_RADIUS } from '../game/hexUtils';
+import { HEX_RADIUS, hexToKey } from '../game/hexUtils';
 
 // Pre-allocated vectors for GC avoidance
 const _v1 = new THREE.Vector3();
@@ -424,41 +424,45 @@ export class HexMeshManager {
       this.attackTargetGroup.remove(this.attackTargetGroup.children[0]);
     }
 
-    // Move rings (emerald green glow)
-    const moveRingGeo = new THREE.RingGeometry(HEX_RADIUS * 0.75, HEX_RADIUS * 0.92, 6);
-    moveRingGeo.rotateX(-Math.PI / 2);
-    moveRingGeo.rotateY(Math.PI / 6);
+    // Move indicator (emerald green hexagonal disc + border)
+    const moveDiscGeo = new THREE.CircleGeometry(HEX_RADIUS * 0.88, 6);
+    moveDiscGeo.rotateX(-Math.PI / 2);
+    moveDiscGeo.rotateY(Math.PI / 6);
     const moveMat = new THREE.MeshBasicMaterial({
-      color: 0x34d399,
+      color: 0x10b981,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.45,
       side: THREE.DoubleSide,
+      depthWrite: false,
     });
 
     for (const [key] of reachableTiles.entries()) {
       const tile = tilesMap.get(key);
       if (!tile) continue;
       const tData = TERRAIN_DATA[tile.terrain];
-      const ring = new THREE.Mesh(moveRingGeo, moveMat);
-      ring.position.set(tile.x, tData.height + 0.63, tile.z);
-      this.movePathGroup.add(ring);
+      const disc = new THREE.Mesh(moveDiscGeo, moveMat);
+      disc.position.set(tile.x, tData.height + 0.63, tile.z);
+      disc.userData = { tileKey: key, q: tile.q, r: tile.r, type: 'moveTarget' };
+      this.movePathGroup.add(disc);
     }
 
-    // Attack rings (pulsing red glow)
-    const attackRingGeo = new THREE.RingGeometry(HEX_RADIUS * 0.72, HEX_RADIUS * 0.95, 6);
+    // Attack targets (pulsing red hexagonal ring)
+    const attackRingGeo = new THREE.RingGeometry(HEX_RADIUS * 0.4, HEX_RADIUS * 0.92, 6);
     attackRingGeo.rotateX(-Math.PI / 2);
     attackRingGeo.rotateY(Math.PI / 6);
     const attackMat = new THREE.MeshBasicMaterial({
       color: 0xef4444,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.75,
       side: THREE.DoubleSide,
+      depthWrite: false,
     });
 
     for (const tile of attackTargets) {
       const tData = TERRAIN_DATA[tile.terrain];
       const ring = new THREE.Mesh(attackRingGeo, attackMat);
       ring.position.set(tile.x, tData.height + 0.64, tile.z);
+      ring.userData = { tileKey: hexToKey(tile.q, tile.r), q: tile.q, r: tile.r, type: 'attackTarget' };
       this.attackTargetGroup.add(ring);
     }
   }

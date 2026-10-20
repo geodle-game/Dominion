@@ -1,0 +1,6 @@
+{
+  "name": "Dominion - 3D Hex Grand Strategy",
+  "description": "A browser-based 3D turn-based grand strategy game combining hex warfare, tactical combat, deep economy, and fog of war across procedural low-poly worlds.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
